@@ -1,0 +1,10 @@
+[2026-09-13 02:25:56] APPROVE | event=IV_BLOOD_PUMP | intent={'action': 'SET_RATE', 'value': 0} | reason=all checks passed | via=backend_server
+[2026-09-13 02:26:08] DENY | event=IV_BLOOD_PUMP | intent={'action': 'SET_RATE', 'value': 205} | reason=value 205 outside allowed range [0, 200] for action 'SET_RATE' | via=backend_server
+[2026-09-13 02:26:14] APPROVE | event=DAM_GATE | intent={'action': 'OPEN_GATE', 'value': 0} | reason=all checks passed | via=backend_server(batch)
+[2026-09-13 02:26:14] APPROVE | event=DAM_GATE | intent={'action': 'SET_TURBINE_RPM', 'value': 1200} | reason=all checks passed | via=backend_server(batch)
+[2026-09-13 02:26:24] APPROVE | event=DAM_GATE | intent={'action': r['action'], 'value': r['value']} | reason=all checks passed | via=backend_server(batch, BLOCKED)
+[2026-09-13 02:26:24] DENY | event=DAM_GATE | intent={'action': r['action'], 'value': r['value']} | reason=value 5200 outside allowed range [0, 5000] for action 'SET_TURBINE_RPM' | via=backend_server(batch, BLOCKED)
+[2026-09-13 02:26:32] APPROVE | event=DAM_GATE | intent={'action': r['action'], 'value': r['value']} | reason=all checks passed | via=backend_server(batch, BLOCKED)
+[2026-09-13 02:26:32] DENY | event=DAM_GATE | intent={'action': r['action'], 'value': r['value']} | reason=value 5200 outside allowed range [0, 5000] for action 'SET_TURBINE_RPM' | via=backend_server(batch, BLOCKED)
+[2026-09-13 02:32:51] APPROVE | event=DAM_GATE | intent={'action': 'OPEN_GATE', 'value': 0} | reason=all checks passed | via=backend_server(batch)
+[2026-09-13 02:32:53] APPROVE | event=DAM_GATE | intent={'action': 'SET_TURBINE_RPM', 'value': 1200} | reason=all checks passed | via=backend_server(batch)

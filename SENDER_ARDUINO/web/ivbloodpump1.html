@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACTULOCK // IV BLOOD PUMP</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        emeraldDark: '#0b1410',
+                        panelBg: '#0f1c16',
+                        brandGold: '#d4af37',
+                        techRed: '#ff2a2a',
+                        techAmber: '#ffaa00',
+                        techGreen: '#00ff66',
+                        techCyan: '#00f0ff',
+                        medicalBlue: '#3b82f6',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Share Tech Mono', 'monospace'],
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'ekg-scan': 'ekg 2.5s linear infinite',
+                        'lockdown': 'lockdown 1s ease-in-out infinite alternate',
+                    },
+                    keyframes: {
+                        ekg: {
+                            '0%': { transform: 'translateX(-100%)' },
+                            '100%': { transform: 'translateX(100%)' }
+                        },
+                        lockdown: {
+                            '0%': { boxShadow: 'inset 0 0 0 1px rgba(255,42,42,0.2)' },
+                            '100%': { boxShadow: 'inset 0 0 50px rgba(255,42,42,0.8), inset 0 0 0 2px #ff2a2a' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #0b1410;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        /* Medical Dot Grid Background */
+        .tech-grid {
+            background-size: 30px 30px;
+            background-image: radial-gradient(rgba(212, 175, 55, 0.1) 1px, transparent 1px);
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: -2;
+            pointer-events: none;
+        }
+
+        /* Hardware Panel Borders */
+        .scada-panel {
+            background: linear-gradient(145deg, #0f1c16, #0b1410);
+            border: 1px solid rgba(212, 175, 55, 0.2);
+            box-shadow: 
+                inset 0 1px 0 rgba(255,255,255,0.05),
+                0 10px 20px rgba(0,0,0,0.5),
+                0 0 20px rgba(59, 130, 246, 0.05); /* Slight medical blue tint to shadow */
+            position: relative;
+        }
+        
+        .scada-panel::before, .scada-panel::after {
+            content: '';
+            position: absolute;
+            width: 12px; height: 12px;
+            border: 2px solid rgba(212, 175, 55, 0.4);
+        }
+        .scada-panel::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+        .scada-panel::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+        /* Custom scrollbar for terminal */
+        .terminal-scroll::-webkit-scrollbar { width: 6px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: #000; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 3px; }
+
+        /* Actuator Slider Styling - Medical Syringe aesthetic */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 12px;
+            border-radius: 4px;
+            background: #00f0ff;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 10px rgba(0,240,255,0.5);
+            border: 1px solid #fff;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+            border: 1px solid rgba(0,240,255,0.2);
+        }
+        input[type=range]:disabled::-webkit-slider-thumb {
+            background: #555;
+            box-shadow: none;
+            border-color: #777;
+            cursor: not-allowed;
+        }
+
+        /* Hardware Overlay Frosted Glass */
+        .hardware-overlay {
+            background: repeating-linear-gradient(
+                -45deg,
+                rgba(5, 10, 8, 0.9),
+                rgba(5, 10, 8, 0.9) 15px,
+                rgba(15, 25, 20, 0.9) 15px,
+                rgba(15, 25, 20, 0.9) 30px
+            );
+            backdrop-filter: blur(6px);
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+        
+        /* EKG Scanner Line */
+        .scan-beam {
+            background: linear-gradient(to right, transparent, rgba(212, 175, 55, 0.9), transparent);
+            width: 20%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            opacity: 0;
+            pointer-events: none;
+            box-shadow: 0 0 15px rgba(212, 175, 55, 0.6);
+        }
+        .scanning .scan-beam {
+            opacity: 1;
+            animation: ekg-scan 1.5s linear infinite;
+        }
+
+        /* Medical specific button styling */
+        .btn-actuator {
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-actuator::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%; width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            transition: left 0.5s;
+        }
+        .btn-actuator:not(:disabled):hover::before {
+            left: 100%;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased min-h-screen flex flex-col p-4 md:p-8" id="body-container">
+
+    <div class="tech-grid"></div>
+
+    <header class="w-full max-w-7xl mx-auto flex items-center justify-between mb-8 scada-panel p-4 rounded-md z-10">
+        <div class="flex items-center gap-4">
+            <button onclick="window.history.back()" class="text-brandGold hover:text-white transition-colors duration-200 p-2 border border-brandGold/30 hover:border-white/50 rounded bg-black/20">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <div>
+                <h1 class="text-xl md:text-2xl font-mono font-bold text-white tracking-widest uppercase flex items-center gap-2">
+                    ACTULOCK <span class="text-brandGold">//</span> IV_BLOOD_PUMP_CTRL
+                    <svg class="w-5 h-5 text-medicalBlue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+                </h1>
+                <p class="font-mono text-xs text-gray-400 mt-1">STATUS: ONLINE | DEPT: ICU_BIO_SECURE</p>
+            </div>
+        </div>
+        <div class="hidden md:flex items-center gap-3">
+            <div id="global-status-dot" class="w-3 h-3 rounded-full bg-brandGold animate-pulse-fast"></div>
+            <span id="global-status-text" class="font-mono text-brandGold text-sm">AWAITING AI PRESCRIPTION</span>
+        </div>
+    </header>
+
+    <main class="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow z-10">
+        
+        <div class="lg:col-span-7 flex flex-col gap-6">
+            
+            <!-- AI Command Queue -->
+            <section class="scada-panel rounded-md p-5 border-l-4 border-l-brandGold">
+                <div class="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
+                    <h2 class="font-mono text-sm text-gray-400">01 // INCOMING_AI_COMMAND</h2>
+                    <span class="font-mono text-[10px] bg-black/50 px-2 py-1 rounded text-medicalBlue border border-medicalBlue/30">CLINICAL AGENT v2.1</span>
+                </div>
+                <div class="bg-black/60 p-4 rounded border border-white/5 font-mono text-lg text-white flex items-start gap-3">
+                    <span class="text-medicalBlue mt-1">></span>
+                    <span id="ai-command-text" class="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">Adjust Continuous Flow Rate to 45 ml/hr</span>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-gray-500">
+                    <span>PRESCRIPTION LIMITS —</span>
+                    <span>FLOW RATE: <span class="text-gray-400">0–200 ml/hr</span></span>
+                    <span>BOLUS: <span class="text-gray-400">≤ 20 ml</span></span>
+                </div>
+            </section>
+
+            <!-- ActuLock Policy Engine -->
+            <section class="scada-panel rounded-md p-6 flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-panelBg to-[#112019] min-h-[160px]">
+                <div class="absolute top-0 left-0 w-full h-full scan-beam z-0"></div>
+                
+                <h2 class="font-mono text-sm text-brandGold mb-6 tracking-widest z-10 text-center">02 // ACTULOCK BIO-VERIFICATION</h2>
+                
+                <button id="check-btn" onclick="triggerCheck()" class="z-10 group relative w-72 h-20 bg-black border-2 border-brandGold rounded-lg overflow-hidden flex flex-col items-center justify-center transition-all duration-300 hover:shadow-[0_0_30px_rgba(212,175,55,0.3)] active:scale-95">
+                    <div class="absolute inset-0 bg-brandGold opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                    <div class="flex items-center gap-3">
+                        <svg class="w-6 h-6 text-brandGold" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>
+                        <span class="font-mono font-bold text-brandGold tracking-wider text-lg">CHECK SYSTEM</span>
+                    </div>
+                </button>
+            </section>
+
+            <!-- Terminal / Logs -->
+            <section class="scada-panel rounded-md p-0 flex flex-col h-64 border border-white/10">
+                <div class="bg-black/80 px-4 py-2 border-b border-white/10 flex items-center justify-between">
+                    <h2 class="font-mono text-xs text-gray-400">03 // CLINICAL_SYSTEM_LOGS</h2>
+                    <div class="flex gap-1.5">
+                        <div class="w-2 h-2 rounded-full bg-techRed/50"></div>
+                        <div class="w-2 h-2 rounded-full bg-techAmber/50"></div>
+                        <div class="w-2 h-2 rounded-full bg-techGreen/50"></div>
+                    </div>
+                </div>
+                <div id="terminal-output" class="p-4 font-mono text-[13px] text-gray-300 flex-grow overflow-y-auto terminal-scroll bg-[#050a08] whitespace-pre-wrap leading-relaxed">
+ACTULOCK MEDICAL SECURE LAYER v2.8.4
+BIO-CONSTRAINTS LOADED: PATIENT_PROFILE_A.
+WAITING FOR PRESCRIPTION COMMAND...</div>
+            </section>
+        </div>
+
+        <!-- RIGHT COLUMN: Hardware Actuators (5 cols) -->
+        <div class="lg:col-span-5 scada-panel rounded-md p-6 relative flex flex-col">
+            <div class="flex justify-between items-center mb-6 pb-2 border-b border-white/10">
+                <h2 class="font-mono text-sm text-gray-400">04 // PUMP_HARDWARE_INTERFACE</h2>
+                <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"></path></svg>
+            </div>
+            
+            <!-- LOCK OVERLAY -->
+            <div id="lock-overlay" class="hardware-overlay absolute inset-0 z-50 flex flex-col items-center justify-center rounded-md border border-brandGold/30">
+                <div class="bg-black/90 border-2 border-brandGold p-6 rounded-lg flex flex-col items-center shadow-[0_0_30px_rgba(212,175,55,0.15)]">
+                    <svg class="w-12 h-12 text-brandGold mb-4 animate-pulse-fast" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                    </svg>
+                    <span class="font-mono font-bold text-brandGold tracking-widest text-lg text-center">HARDWARE LOCKED</span>
+                    <span class="font-mono text-xs text-gray-400 mt-2 text-center max-w-[220px]">ActuLock Proxy engaged. Awaiting clinical parameter verification.</span>
+                </div>
+            </div>
+
+            <!-- CONTROLS -->
+            <div class="flex flex-col gap-6 flex-grow justify-between">
+                
+                <!-- Flow Rate Slider -->
+                <div class="bg-black/40 p-5 rounded border border-white/5">
+                    <div class="flex justify-between items-center mb-4">
+                        <label class="font-mono text-sm text-gray-300">FLOW RATE (ml/hr)</label>
+                        <span class="font-mono font-bold text-techCyan bg-techCyan/10 border border-techCyan/20 px-3 py-1 rounded" id="flow-val">00.0</span>
+                    </div>
+                    <input type="range" min="0" max="250" value="0" step="5" class="w-full" disabled id="flow-slider" oninput="document.getElementById('flow-val').innerText = parseFloat(this.value).toFixed(1)">
+                    <div class="flex justify-between text-[10px] font-mono text-gray-500 mt-2">
+                        <span>0</span>
+                        <span>MAX: 250</span>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="grid grid-cols-2 gap-4">
+                    <button disabled class="actuator-ctrl btn-actuator bg-black/40 border border-medicalBlue/40 text-medicalBlue p-4 rounded font-mono text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-medicalBlue/10 flex flex-col items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        ADMINISTER BOLUS
+                    </button>
+                    
+                    <button disabled class="actuator-ctrl btn-actuator bg-black/40 border border-white/20 text-white p-4 rounded font-mono text-sm disabled:opacity-40 disabled:cursor-not-allowed hover:bg-white/10 flex flex-col items-center justify-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                        PURGE LINE
+                    </button>
+                </div>
+
+                <!-- Emergency Halt Toggle -->
+                <div class="bg-black/40 p-5 rounded border border-techRed/40 mt-auto">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <span class="font-mono text-sm text-techRed block font-bold">EMERGENCY HALT</span>
+                            <span class="font-mono text-[10px] text-gray-500">Bypasses AI check — clinician-triggered, always available</span>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="estop-toggle" onchange="if(this.checked) manualOverride(); else location.reload();" class="sr-only peer">
+                            <div class="w-14 h-7 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-techRed"></div>
+                        </label>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+    // DOM Elements
+    const terminal = document.getElementById('terminal-output');
+    const checkBtn = document.getElementById('check-btn');
+    const lockOverlay = document.getElementById('lock-overlay');
+    const bodyContainer = document.getElementById('body-container');
+    const globalStatusDot = document.getElementById('global-status-dot');
+    const globalStatusText = document.getElementById('global-status-text');
+    const aiCommandText = document.getElementById('ai-command-text');
+
+    // Actuator Elements
+    const flowSlider = document.getElementById('flow-slider');
+    const actuatorBtns = document.querySelectorAll('.actuator-ctrl');
+
+    const EVENT_ID = 1; // IV_BLOOD_PUMP -- see docs/protocol.md
+    let isScanning = false;
+
+    // Calls the REAL backend -- policy_engine.evaluate() is the only
+    // place these rules live. Nothing here duplicates a threshold.
+    async function checkAction(action, value, label) {
+        const res = await fetch('/api/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: EVENT_ID, action, value, agent: 'web-ui', reasoning: label })
+        });
+        return res.json();
+    }
+
+    function writeToTerminal(text, delay = 0) {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                const time = new Date().toISOString().substring(11, 19);
+                const line = document.createElement('div');
+                line.className = "mb-1";
+                line.innerHTML = `<span class="text-gray-600">[${time}]</span> ${text}`;
+                terminal.appendChild(line);
+                terminal.scrollTop = terminal.scrollHeight;
+                resolve();
+            }, delay);
+        });
+    }
+
+    function lockControls() {
+        lockOverlay.style.opacity = '1';
+        lockOverlay.style.visibility = 'visible';
+        flowSlider.disabled = true;
+        actuatorBtns.forEach(btn => btn.disabled = true);
+        bodyContainer.classList.remove('animate-lockdown');
+    }
+
+    function unlockControls() {
+        lockOverlay.style.opacity = '0';
+        setTimeout(() => { lockOverlay.style.visibility = 'hidden'; }, 400);
+        flowSlider.disabled = false;
+        actuatorBtns.forEach(btn => btn.disabled = false);
+    }
+
+    function resetLockOverlay() {
+        const icon = lockOverlay.querySelector('svg');
+        icon.outerHTML = `<svg class="w-12 h-12 text-brandGold mb-4 animate-pulse-fast" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>`;
+        lockOverlay.querySelector('span:first-of-type').innerText = 'HARDWARE LOCKED';
+        lockOverlay.querySelector('span:first-of-type').className = 'font-mono font-bold text-brandGold tracking-widest text-lg text-center';
+        lockOverlay.querySelector('span:last-of-type').innerText = 'ActuLock Proxy engaged. Awaiting clinical parameter verification.';
+        lockOverlay.querySelector('div').className = 'bg-black/90 border-2 border-brandGold p-6 rounded-lg flex flex-col items-center shadow-[0_0_30px_rgba(212,175,55,0.15)]';
+    }
+
+    async function handleOutcome(approved, reason) {
+        if (approved) {
+            await writeToTerminal('<span class="text-techGreen font-bold">> VALIDATION SUCCESS: Parameters within clinical bounds.</span>', 0);
+            await writeToTerminal('<span class="text-techGreen">> ACTION: Authorized. Hardware Actuators Unlocked.</span>', 300);
+
+            globalStatusDot.className = 'w-3 h-3 rounded-full bg-techGreen shadow-[0_0_10px_#00ff66]';
+            globalStatusText.innerText = 'SYSTEM GOOD / UNLOCKED';
+            globalStatusText.className = 'font-mono text-techGreen text-sm font-bold';
+
+            const icon = lockOverlay.querySelector('svg');
+            icon.outerHTML = `<svg class="w-12 h-12 text-techGreen mb-4 drop-shadow-[0_0_8px_#00ff66]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>`;
+            lockOverlay.querySelector('span:first-of-type').innerText = 'CLINICAL ACCESS GRANTED';
+            lockOverlay.querySelector('span:first-of-type').className = 'font-mono font-bold text-techGreen tracking-widest text-lg text-center';
+            lockOverlay.querySelector('span:last-of-type').innerText = 'Actuators verified safe.';
+
+            unlockControls();
+        } else {
+            await writeToTerminal('<span class="text-techAmber font-bold">> REJECTED: Policy constraint violated.</span>', 0);
+            await writeToTerminal(`<span class="text-techAmber">> REASON: ${reason}</span>`, 300);
+            await writeToTerminal('<span class="text-techAmber">> ACTION: Rejected. Pump mechanisms remain locked.</span>', 300);
+
+            globalStatusDot.className = 'w-3 h-3 rounded-full bg-techAmber shadow-[0_0_10px_#ffaa00] animate-pulse';
+            globalStatusText.innerText = 'CLINICAL CONSTRAINT VIOLATION';
+            globalStatusText.className = 'font-mono text-techAmber text-sm font-bold';
+
+            resetLockOverlay();
+            lockOverlay.querySelector('svg').classList.replace('text-brandGold', 'text-techAmber');
+            lockOverlay.querySelector('span:first-of-type').innerText = 'PARAMETER REJECTED';
+            lockOverlay.querySelector('span:first-of-type').classList.replace('text-brandGold', 'text-techAmber');
+            lockOverlay.querySelector('div').classList.replace('border-brandGold', 'border-techAmber');
+        }
+    }
+
+    async function runCheck(action, value, label) {
+        if (isScanning) return;
+        isScanning = true;
+
+        lockControls();
+        checkBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        document.querySelector('.scan-beam').parentElement.classList.add('scanning');
+        globalStatusDot.className = 'w-3 h-3 rounded-full bg-brandGold animate-pulse-fast';
+        globalStatusText.innerText = 'CROSS-REFERENCING CONSTRAINTS...';
+        globalStatusText.className = 'font-mono text-brandGold text-sm';
+        aiCommandText.innerText = label;
+
+        await writeToTerminal('\n<span class="text-brandGold">> INITIATING ACTULOCK BIO-VERIFICATION...</span>', 100);
+        await writeToTerminal(`> REQUEST: <span class="text-white">${label}</span>`, 300);
+        await writeToTerminal('> SENDING TO POLICY ENGINE...', 400);
+
+        let result;
+        try {
+            result = await checkAction(action, value, label);
+        } catch (e) {
+            await writeToTerminal('<span class="text-techRed font-bold">> BACKEND UNREACHABLE -- is backend_server.py running?</span>', 0);
+            document.querySelector('.scan-beam').parentElement.classList.remove('scanning');
+            isScanning = false;
+            checkBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            return;
+        }
+
+        document.querySelector('.scan-beam').parentElement.classList.remove('scanning');
+        await writeToTerminal('> CHECKING DOSAGE LIMITS & RATE CONSTRAINTS...', 200);
+        await writeToTerminal(`> POLICY CHECK: ${result.reason}`, 300);
+
+        if (result.hardware && result.hardware.attempted) {
+            if (result.hardware.connected) {
+                await writeToTerminal(`> HARDWARE (Sender Arduino): ${result.hardware.response || '(no response)'}`, 200);
+            } else {
+                await writeToTerminal(`> HARDWARE: not connected (${result.hardware.error})`, 200);
+            }
+        }
+
+        await handleOutcome(result.approved, result.reason);
+        isScanning = false;
+        checkBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+
+    // Main "RUN CHECK" button -- checks the current Flow Rate slider value.
+    function triggerCheck() {
+        const value = parseFloat(flowSlider.value);
+        runCheck('SET_RATE', value, `Set Continuous Flow Rate to ${value.toFixed(1)} ml/hr`);
+    }
+
+    // Action buttons -- each is its own real, single-parameter request.
+    actuatorBtns[0].onclick = () => runCheck('ADMINISTER_BOLUS', 10, 'Administer 10 ml Normal Saline Bolus');
+    actuatorBtns[1].onclick = () => runCheck('PURGE_LINE', 0, 'Purge Line');
+
+    // Clinician-triggered halt -- bypasses AI/policy verification entirely.
+    // Local/instant by design: a human safety action should never wait on a
+    // network round trip, so this does NOT call the backend.
+    async function manualOverride() {
+        isScanning = false;
+        lockControls();
+        checkBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        document.querySelector('.scan-beam').parentElement.classList.remove('scanning');
+
+        await writeToTerminal('\n<span class="text-techRed font-bold">> CLINICIAN EMERGENCY HALT TRIGGERED</span>', 0);
+        await writeToTerminal('<span class="text-techRed">> This bypasses AI/policy verification entirely — human authority always wins.</span>', 200);
+        await writeToTerminal('<span class="text-techRed font-bold">> ACTION: INFUSION STOPPED, FLOW SET TO 0 ml/hr.</span>', 200);
+
+        bodyContainer.classList.add('animate-lockdown');
+        globalStatusDot.className = 'w-3 h-3 rounded-full bg-techRed shadow-[0_0_10px_#ff2a2a] animate-ping';
+        globalStatusText.innerText = 'CLINICIAN HALT ENGAGED';
+        globalStatusText.className = 'font-mono text-techRed text-sm font-bold';
+
+        flowSlider.value = 0; flowSlider.dispatchEvent(new Event('input'));
+
+        resetLockOverlay();
+        lockOverlay.querySelector('svg').classList.replace('text-brandGold', 'text-techRed');
+        lockOverlay.querySelector('span:first-of-type').innerText = 'CLINICIAN HALT';
+        lockOverlay.querySelector('span:first-of-type').classList.replace('text-brandGold', 'text-techRed');
+        lockOverlay.querySelector('div').classList.replace('border-brandGold', 'border-techRed');
+    }
+</script>
+</body>
+</html>

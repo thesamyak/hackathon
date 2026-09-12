@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACTULOCK // DAM CONTROL</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        emeraldDark: '#0b1410',
+                        panelBg: '#0f1c16',
+                        brandGold: '#d4af37',
+                        techRed: '#ff2a2a',
+                        techAmber: '#ffaa00',
+                        techGreen: '#00ff66',
+                        metallic: '#8a958d'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Share Tech Mono', 'monospace'],
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'scan-line': 'scan 2s linear infinite',
+                        'lockdown': 'lockdown 1s ease-in-out infinite alternate',
+                    },
+                    keyframes: {
+                        scan: {
+                            '0%': { transform: 'translateY(-100%)' },
+                            '100%': { transform: 'translateY(100%)' }
+                        },
+                        lockdown: {
+                            '0%': { boxShadow: 'inset 0 0 0 1px rgba(255,42,42,0.2)' },
+                            '100%': { boxShadow: 'inset 0 0 50px rgba(255,42,42,0.8), inset 0 0 0 2px #ff2a2a' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #0b1410;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        /* Industrial Grid Background */
+        .tech-grid {
+            background-size: 50px 50px;
+            background-image: 
+                linear-gradient(to right, rgba(212, 175, 55, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(212, 175, 55, 0.05) 1px, transparent 1px);
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: -2;
+            pointer-events: none;
+        }
+
+        /* Hardware Panel Borders */
+        .scada-panel {
+            background: linear-gradient(145deg, #0f1c16, #0b1410);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            box-shadow: 
+                inset 0 1px 0 rgba(255,255,255,0.1),
+                0 10px 20px rgba(0,0,0,0.5),
+                0 0 15px rgba(212, 175, 55, 0.05);
+            position: relative;
+        }
+        
+        .scada-panel::before, .scada-panel::after {
+            content: '';
+            position: absolute;
+            width: 8px; height: 8px;
+            border: 1px solid rgba(212, 175, 55, 0.5);
+        }
+        .scada-panel::before { top: 4px; left: 4px; border-right: none; border-bottom: none; }
+        .scada-panel::after { bottom: 4px; right: 4px; border-left: none; border-top: none; }
+
+        /* Custom scrollbar for terminal */
+        .terminal-scroll::-webkit-scrollbar { width: 6px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: #000; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 3px; }
+
+        /* Actuator Slider Styling */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 16px;
+            border-radius: 2px;
+            background: #d4af37;
+            cursor: pointer;
+            margin-top: -10px;
+            box-shadow: 0 0 10px rgba(212,175,55,0.5);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.1);
+            border-radius: 2px;
+        }
+        input[type=range]:disabled::-webkit-slider-thumb {
+            background: #555;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        /* Toggle Switch Styling */
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #d4af37;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: rgba(212, 175, 55, 0.2);
+            border-color: #d4af37;
+        }
+        .toggle-checkbox:checked + .toggle-label::after {
+            transform: translateX(100%);
+            background-color: #d4af37;
+        }
+        
+        .hardware-overlay {
+            background: repeating-linear-gradient(
+                45deg,
+                rgba(0, 0, 0, 0.8),
+                rgba(0, 0, 0, 0.8) 10px,
+                rgba(20, 20, 20, 0.8) 10px,
+                rgba(20, 20, 20, 0.8) 20px
+            );
+            backdrop-filter: blur(4px);
+            transition: opacity 0.5s ease, visibility 0.5s ease;
+        }
+        
+        .scan-beam {
+            background: linear-gradient(to bottom, transparent, rgba(212, 175, 55, 0.8), transparent);
+            height: 20%;
+            width: 100%;
+            position: absolute;
+            left: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .scanning .scan-beam {
+            opacity: 1;
+            animation: scan 1.5s linear infinite;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased min-h-screen flex flex-col p-4 md:p-8" id="body-container">
+
+    <div class="tech-grid"></div>
+
+    <header class="w-full max-w-7xl mx-auto flex items-center justify-between mb-8 scada-panel p-4 rounded-md z-10">
+        <div class="flex items-center gap-4">
+            <button onclick="window.history.back()" class="text-brandGold hover:text-white transition-colors duration-200 p-2 border border-brandGold/30 hover:border-white/50 rounded bg-black/20">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <div>
+                <h1 class="text-xl md:text-2xl font-mono font-bold text-white tracking-widest uppercase">
+                    ACTULOCK <span class="text-brandGold">//</span> DAM_CTRL_SYS
+                </h1>
+                <p class="font-mono text-xs text-gray-500 mt-1">STATUS: ONLINE | PROT: ZERO_TRUST</p>
+            </div>
+        </div>
+        <div class="hidden md:flex items-center gap-3">
+            <div id="global-status-dot" class="w-3 h-3 rounded-full bg-brandGold animate-pulse-fast"></div>
+            <span id="global-status-text" class="font-mono text-brandGold text-sm">AWAITING AI INPUT</span>
+        </div>
+    </header>
+
+    <main class="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow z-10">
+        
+        <!-- LEFT COLUMN: AI & Policy Logic (7 cols) -->
+        <div class="lg:col-span-7 flex flex-col gap-6">
+            
+            <!-- AI Command Queue -->
+            <section class="scada-panel rounded-md p-5 border-l-4 border-l-brandGold">
+                <div class="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
+                    <h2 class="font-mono text-sm text-gray-400">01 // AI_AGENT_PROPOSAL</h2>
+                    <span class="font-mono text-[10px] bg-black/50 px-2 py-1 rounded text-white border border-white/20">INCOMING DATA</span>
+                </div>
+                <div class="bg-black/60 p-4 rounded border border-white/5 font-mono text-lg text-white">
+                    > COMMAND: <span id="ai-command-text" class="text-techCyan drop-shadow-[0_0_8px_rgba(0,240,255,0.4)]">Adjust Spillway Gate 2 to 85%</span>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-gray-500">
+                    <span>POLICY LIMITS —</span>
+                    <span>SPILLWAY: <span class="text-gray-400">0–90%</span></span>
+                    <span>TURBINE: <span class="text-gray-400">0–5000 RPM</span></span>
+                    <span>VALVES: <span class="text-gray-400">ALPHA, BETA</span></span>
+                </div>
+            </section>
+
+            <!-- ActuLock Policy Engine -->
+            <section class="scada-panel rounded-md p-6 flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-panelBg to-[#1a2e24]">
+                <div class="absolute top-0 left-0 w-full h-full scan-beam z-0"></div>
+                
+                <h2 class="font-mono text-sm text-brandGold mb-6 tracking-widest z-10 text-center">02 // ACTULOCK POLICY ENGINE</h2>
+                
+                <button id="check-btn" onclick="triggerCheck()" class="z-10 group relative w-64 h-24 bg-black border-2 border-brandGold rounded-lg overflow-hidden flex flex-col items-center justify-center transition-all duration-300 hover:shadow-[0_0_30px_rgba(212,175,55,0.3)] active:scale-95">
+                    <div class="absolute inset-0 bg-brandGold opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                    <svg class="w-8 h-8 text-brandGold mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                    </svg>
+                    <span class="font-mono font-bold text-brandGold tracking-wider text-lg">CHECK SYSTEM</span>
+                </button>
+            </section>
+
+            <!-- Terminal / Logs -->
+            <section class="scada-panel rounded-md p-0 flex flex-col h-64 border border-white/10">
+                <div class="bg-black/80 px-4 py-2 border-b border-white/10 flex items-center justify-between">
+                    <h2 class="font-mono text-xs text-gray-400">03 // SYSTEM_LOGS</h2>
+                    <div class="flex gap-1.5">
+                        <div class="w-2.5 h-2.5 rounded-full bg-techRed/50"></div>
+                        <div class="w-2.5 h-2.5 rounded-full bg-techAmber/50"></div>
+                        <div class="w-2.5 h-2.5 rounded-full bg-techGreen/50"></div>
+                    </div>
+                </div>
+                <div id="terminal-output" class="p-4 font-mono text-sm text-gray-300 flex-grow overflow-y-auto terminal-scroll bg-black/90 whitespace-pre-wrap leading-relaxed">
+ACTULOCK SECURE LAYER v4.2.1
+SYSTEM INITIALIZED.
+WAITING FOR COMMAND VERIFICATION...</div>
+            </section>
+        </div>
+
+        <!-- RIGHT COLUMN: Hardware Actuators (5 cols) -->
+        <div class="lg:col-span-5 scada-panel rounded-md p-6 relative flex flex-col">
+            <h2 class="font-mono text-sm text-gray-400 mb-6 pb-2 border-b border-white/10">04 // HARDWARE EXECUTION</h2>
+            
+            <!-- LOCK OVERLAY -->
+            <div id="lock-overlay" class="hardware-overlay absolute inset-0 z-50 flex flex-col items-center justify-center rounded-md border-2 border-brandGold/50">
+                <div class="bg-black/80 border border-brandGold p-6 rounded-lg flex flex-col items-center shadow-[0_0_20px_rgba(212,175,55,0.2)]">
+                    <svg class="w-12 h-12 text-brandGold mb-4 animate-pulse-fast" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                    </svg>
+                    <span class="font-mono font-bold text-brandGold tracking-widest text-lg text-center">SYSTEM LOCKED</span>
+                    <span class="font-mono text-xs text-gray-400 mt-2 text-center max-w-[200px]">Awaiting ActuLock verification of AI command.</span>
+                </div>
+            </div>
+
+            <!-- CONTROLS -->
+            <div class="flex flex-col gap-8 flex-grow">
+                
+                <!-- Spillway Slider -->
+                <div class="bg-black/30 p-4 rounded border border-white/5">
+                    <div class="flex justify-between items-center mb-4">
+                        <label class="font-mono text-sm text-white">SPILLWAY GATE 2</label>
+                        <span class="font-mono text-brandGold bg-brandGold/10 px-2 py-0.5 rounded" id="spillway-val">0%</span>
+                    </div>
+                    <input type="range" min="0" max="100" value="0" class="w-full" disabled id="spillway-slider" oninput="document.getElementById('spillway-val').innerText = this.value + '%'">
+                </div>
+
+                <!-- Turbine Speed -->
+                <div class="bg-black/30 p-4 rounded border border-white/5">
+                    <div class="flex justify-between items-center mb-4">
+                        <label class="font-mono text-sm text-white">TURBINE A_RPM</label>
+                        <span class="font-mono text-techCyan bg-techCyan/10 px-2 py-0.5 rounded" id="turbine-val">1200</span>
+                    </div>
+                    <input type="range" min="0" max="6000" step="100" value="1200" class="w-full" disabled id="turbine-slider" oninput="document.getElementById('turbine-val').innerText = this.value">
+                </div>
+
+                <!-- Bypass Valves Toggles -->
+                <div class="bg-black/30 p-4 rounded border border-white/5 flex-grow">
+                    <label class="font-mono text-sm text-white mb-4 block">BYPASS VALVES</label>
+                    <div class="grid grid-cols-2 gap-4">
+                        
+                        <!-- Toggle 1 -->
+                        <div class="flex items-center justify-between bg-black/50 p-2 rounded border border-white/5">
+                            <span class="font-mono text-xs text-gray-400">VALVE ALPHA</span>
+                            <div class="relative inline-block w-12 h-6 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" name="toggle1" id="toggle1" disabled class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-600 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"/>
+                                <label for="toggle1" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer border border-gray-500"></label>
+                            </div>
+                        </div>
+
+                        <!-- Toggle 2 -->
+                        <div class="flex items-center justify-between bg-black/50 p-2 rounded border border-white/5">
+                            <span class="font-mono text-xs text-gray-400">VALVE BETA</span>
+                            <div class="relative inline-block w-12 h-6 align-middle select-none transition duration-200 ease-in">
+                                <input type="checkbox" name="toggle2" id="toggle2" disabled class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-gray-600 appearance-none cursor-pointer z-10 transition-transform duration-200 ease-in-out"/>
+                                <label for="toggle2" class="toggle-label block overflow-hidden h-6 rounded-full bg-gray-600 cursor-pointer border border-gray-500"></label>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Manual Override Button — always live, bypasses the AI check entirely -->
+                <button id="override-btn" onclick="manualOverride()" class="w-full py-3 border border-red-500/60 text-red-400 font-mono text-sm tracking-widest rounded bg-red-500/10 hover:bg-red-500/20 hover:text-white transition-colors">
+                    EMERGENCY MANUAL OVERRIDE
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    // DOM Elements
+    const terminal = document.getElementById('terminal-output');
+    const checkBtn = document.getElementById('check-btn');
+    const lockOverlay = document.getElementById('lock-overlay');
+    const bodyContainer = document.getElementById('body-container');
+    const globalStatusDot = document.getElementById('global-status-dot');
+    const globalStatusText = document.getElementById('global-status-text');
+    const aiCommandText = document.getElementById('ai-command-text');
+
+    // Actuator Elements
+    const spillwaySlider = document.getElementById('spillway-slider');
+    const turbineSlider = document.getElementById('turbine-slider');
+    const toggle1 = document.getElementById('toggle1'); // VALVE ALPHA
+    const toggle2 = document.getElementById('toggle2'); // VALVE BETA
+
+    const EVENT_ID = 3; // DAM_GATE -- see docs/protocol.md
+    let isScanning = false;
+
+    // Calls the REAL backend -- policy_engine.evaluate() is the only
+    // place these rules live. Nothing here duplicates a threshold.
+    async function checkAction(action, value, label) {
+        const res = await fetch('/api/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: EVENT_ID, action, value, agent: 'web-ui', reasoning: label })
+        });
+        return res.json();
+    }
+
+    function writeToTerminal(text, delay = 0) {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                const time = new Date().toISOString().substring(11, 19);
+                const line = document.createElement('div');
+                line.className = "mb-1";
+                line.innerHTML = `<span class="text-gray-600">[${time}]</span> ${text}`;
+                terminal.appendChild(line);
+                terminal.scrollTop = terminal.scrollHeight;
+                resolve();
+            }, delay);
+        });
+    }
+
+    function lockControls() {
+        lockOverlay.style.opacity = '1';
+        lockOverlay.style.visibility = 'visible';
+        spillwaySlider.disabled = true;
+        turbineSlider.disabled = true;
+        toggle1.disabled = true;
+        toggle2.disabled = true;
+        bodyContainer.classList.remove('animate-lockdown');
+    }
+
+    function unlockControls() {
+        lockOverlay.style.opacity = '0';
+        setTimeout(() => { lockOverlay.style.visibility = 'hidden'; }, 400);
+        spillwaySlider.disabled = false;
+        turbineSlider.disabled = false;
+        toggle1.disabled = false;
+        toggle2.disabled = false;
+    }
+
+    function resetLockOverlay() {
+        const icon = lockOverlay.querySelector('svg');
+        icon.outerHTML = `<svg class="w-12 h-12 text-brandGold mb-4 animate-pulse-fast" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>`;
+        lockOverlay.querySelector('span:first-of-type').innerText = 'SYSTEM LOCKED';
+        lockOverlay.querySelector('span:first-of-type').className = 'font-mono font-bold text-brandGold tracking-widest text-lg text-center';
+        lockOverlay.querySelector('span:last-of-type').innerText = 'Awaiting ActuLock verification of AI command.';
+        lockOverlay.querySelector('div').className = 'bg-black/80 border border-brandGold p-6 rounded-lg flex flex-col items-center shadow-[0_0_20px_rgba(212,175,55,0.2)]';
+    }
+
+    async function handleOutcome(anyDenied, lastReason) {
+        if (!anyDenied) {
+            await writeToTerminal('<span class="text-techGreen font-bold">> VALIDATION SUCCESS: All setpoints within safe operating range.</span>', 0);
+            await writeToTerminal('<span class="text-techGreen">> ACTION: Authorized. Hardware Actuators Unlocked.</span>', 300);
+
+            globalStatusDot.className = 'w-3 h-3 rounded-full bg-techGreen shadow-[0_0_10px_#00ff66]';
+            globalStatusText.innerText = 'SYSTEM GOOD / UNLOCKED';
+            globalStatusText.className = 'font-mono text-techGreen text-sm font-bold';
+
+            unlockControls();
+        } else {
+            await writeToTerminal('<span class="text-techAmber font-bold">> REJECTED: One or more setpoints violated policy.</span>', 0);
+            await writeToTerminal(`<span class="text-techAmber">> REASON: ${lastReason}</span>`, 300);
+            await writeToTerminal('<span class="text-techAmber">> ACTION: Rejected. Actuators remain locked.</span>', 300);
+
+            globalStatusDot.className = 'w-3 h-3 rounded-full bg-techAmber shadow-[0_0_10px_#ffaa00] animate-pulse';
+            globalStatusText.innerText = 'OPERATING CONSTRAINT VIOLATION';
+            globalStatusText.className = 'font-mono text-techAmber text-sm font-bold';
+
+            resetLockOverlay();
+            lockOverlay.querySelector('svg').classList.replace('text-brandGold', 'text-techAmber');
+            lockOverlay.querySelector('div').classList.replace('border-brandGold', 'border-techAmber');
+        }
+    }
+
+    // Checks spillway + turbine always, and each valve only if its
+    // toggle is switched on -- each is its own real, single-parameter
+    // request, matching exactly what the Sender Arduino can enforce.
+    async function triggerCheck() {
+        if (isScanning) return;
+        isScanning = true;
+
+        lockControls();
+        checkBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        document.querySelector('.scan-beam').parentElement.classList.add('scanning');
+        globalStatusDot.className = 'w-3 h-3 rounded-full bg-brandGold animate-pulse-fast';
+        globalStatusText.innerText = 'CROSS-REFERENCING HYDRAULIC LIMITS...';
+        globalStatusText.className = 'font-mono text-brandGold text-sm';
+
+        await writeToTerminal('\n<span class="text-brandGold">> INITIATING ACTULOCK ZERO-TRUST VERIFICATION...</span>', 100);
+
+        const requests = [
+            { action: 'OPEN_GATE',       value: parseFloat(spillwaySlider.value), label: `Spillway Gate 2 to ${spillwaySlider.value}%` },
+            { action: 'SET_TURBINE_RPM', value: parseFloat(turbineSlider.value),  label: `Turbine A to ${turbineSlider.value} RPM` },
+        ];
+        if (toggle1.checked) requests.push({ action: 'TOGGLE_VALVE_ALPHA', value: 1, label: 'Open Bypass Valve ALPHA' });
+        if (toggle2.checked) requests.push({ action: 'TOGGLE_VALVE_BETA',  value: 1, label: 'Open Bypass Valve BETA' });
+
+        let anyDenied = false;
+        let lastReason = '';
+        let batch = null;
+
+        // Sent as ONE atomic batch, not one request per setpoint --
+        // if any single action in here is denied, the backend sends
+        // NOTHING to hardware, including the ones that were fine.
+        try {
+            const res = await fetch('/api/check_batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event_id: EVENT_ID,
+                    agent: 'web-ui',
+                    actions: requests.map(r => ({ action: r.action, value: r.value, reasoning: r.label })),
+                })
+            });
+            batch = await res.json();
+        } catch (e) {
+            await writeToTerminal('<span class="text-techRed font-bold">> BACKEND UNREACHABLE -- is backend_server.py running?</span>', 0);
+            anyDenied = true;
+            lastReason = 'backend unreachable';
+        }
+
+        if (batch) {
+            for (let i = 0; i < requests.length; i++) {
+                const req = requests[i];
+                const r = batch.results[i];
+                const hw = batch.hardware[i];
+
+                aiCommandText.innerText = req.label;
+                await writeToTerminal(`> CHECKING: <span class="text-white">${req.label}</span>`, 150);
+                await writeToTerminal(`> POLICY CHECK: ${r.reason}`, 150);
+                if (hw && hw.attempted && hw.connected) {
+                    await writeToTerminal(`> HARDWARE (Sender Arduino): ${hw.response || '(no response)'}`, 100);
+                }
+                if (!r.approved) {
+                    anyDenied = true;
+                    lastReason = r.reason;
+                }
+            }
+            if (!batch.all_approved) {
+                await writeToTerminal('<span class="text-techAmber font-bold">> BATCH BLOCKED: at least one setpoint was denied -- no setpoint in this command was sent to hardware.</span>', 200);
+            }
+        }
+
+        document.querySelector('.scan-beam').parentElement.classList.remove('scanning');
+        await handleOutcome(anyDenied, lastReason);
+        isScanning = false;
+        checkBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+
+    // Manual Override -- bypasses AI/policy verification entirely.
+    // Local/instant by design: a human safety action should never wait
+    // on a network round trip, so this does NOT call the backend.
+    async function manualOverride() {
+        isScanning = false;
+        lockControls();
+        checkBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        document.querySelector('.scan-beam').parentElement.classList.remove('scanning');
+
+        await writeToTerminal('\n<span class="text-techRed font-bold">> EMERGENCY MANUAL OVERRIDE TRIGGERED</span>', 0);
+        await writeToTerminal('<span class="text-techRed">> This bypasses AI/policy verification entirely — human authority always wins.</span>', 200);
+
+        bodyContainer.classList.add('animate-lockdown');
+        globalStatusDot.className = 'w-3 h-3 rounded-full bg-techRed shadow-[0_0_10px_#ff2a2a] animate-ping';
+        globalStatusText.innerText = 'MANUAL OVERRIDE ENGAGED';
+        globalStatusText.className = 'font-mono text-techRed text-sm font-bold';
+
+        resetLockOverlay();
+        lockOverlay.querySelector('svg').classList.replace('text-brandGold', 'text-techRed');
+        lockOverlay.querySelector('div').classList.replace('border-brandGold', 'border-techRed');
+    }
+</script>
+</body>
+</html>

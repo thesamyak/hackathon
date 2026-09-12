@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACTULOCK // ROBOTIC ARM CTRL</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        emeraldDark: '#0b1410',
+                        panelBg: '#0f1c16',
+                        brandGold: '#d4af37',
+                        techRed: '#ff2a2a',
+                        techAmber: '#ffaa00',
+                        techGreen: '#00ff66',
+                        techCyan: '#00f0ff',
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Share Tech Mono', 'monospace'],
+                    },
+                    animation: {
+                        'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'scan-line': 'scan 2s linear infinite',
+                        'lockdown': 'lockdown 1s ease-in-out infinite alternate',
+                    },
+                    keyframes: {
+                        scan: {
+                            '0%': { transform: 'translateY(-100%)' },
+                            '100%': { transform: 'translateY(100%)' }
+                        },
+                        lockdown: {
+                            '0%': { boxShadow: 'inset 0 0 0 1px rgba(255,42,42,0.2)' },
+                            '100%': { boxShadow: 'inset 0 0 50px rgba(255,42,42,0.8), inset 0 0 0 2px #ff2a2a' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        body {
+            background-color: #0b1410;
+            color: #e2e8f0;
+            overflow-x: hidden;
+        }
+
+        .tech-grid {
+            background-size: 40px 40px;
+            background-image: 
+                linear-gradient(to right, rgba(212, 175, 55, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(212, 175, 55, 0.05) 1px, transparent 1px);
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            z-index: -2;
+            pointer-events: none;
+        }
+
+        .scada-panel {
+            background: linear-gradient(145deg, #0f1c16, #0b1410);
+            border: 1px solid rgba(212, 175, 55, 0.25);
+            box-shadow: 
+                inset 0 1px 0 rgba(255,255,255,0.05),
+                0 10px 20px rgba(0,0,0,0.6),
+                0 0 15px rgba(212, 175, 55, 0.05);
+            position: relative;
+        }
+        
+        .scada-panel::before, .scada-panel::after {
+            content: '';
+            position: absolute;
+            width: 10px; height: 10px;
+            border: 2px solid rgba(212, 175, 55, 0.4);
+        }
+        .scada-panel::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+        .scada-panel::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
+
+        .terminal-scroll::-webkit-scrollbar { width: 6px; }
+        .terminal-scroll::-webkit-scrollbar-track { background: #000; }
+        .terminal-scroll::-webkit-scrollbar-thumb { background: #d4af37; border-radius: 3px; }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 20px;
+            width: 12px;
+            border-radius: 2px;
+            background: #d4af37;
+            cursor: pointer;
+            margin-top: -8px;
+            box-shadow: 0 0 10px rgba(212,175,55,0.5);
+            border: 1px solid #fff;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.15);
+            border-radius: 2px;
+        }
+        input[type=range]:disabled::-webkit-slider-thumb {
+            background: #444;
+            box-shadow: none;
+            border-color: #666;
+            cursor: not-allowed;
+        }
+        input[type=range]:disabled::-webkit-slider-runnable-track {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .hardware-overlay {
+            background: repeating-linear-gradient(
+                -45deg,
+                rgba(11, 20, 16, 0.9),
+                rgba(11, 20, 16, 0.9) 10px,
+                rgba(15, 28, 22, 0.9) 10px,
+                rgba(15, 28, 22, 0.9) 20px
+            );
+            backdrop-filter: blur(5px);
+            transition: opacity 0.4s ease, visibility 0.4s ease;
+        }
+        
+        .scan-beam {
+            background: linear-gradient(to bottom, transparent, rgba(212, 175, 55, 0.9), transparent);
+            width: 100%;
+            height: 25%;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            pointer-events: none;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.5);
+        }
+        .scanning .scan-beam {
+            opacity: 1;
+            animation: scan-line 1.5s linear infinite;
+        }
+
+        .metric-box {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 4px;
+            padding: 8px 12px;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased min-h-screen flex flex-col p-4 md:p-8" id="body-container">
+
+    <div class="tech-grid"></div>
+
+    <header class="w-full max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between mb-8 scada-panel p-4 rounded-md z-10 gap-4">
+        <div class="flex items-center gap-4 w-full md:w-auto">
+            <button onclick="window.history.back()" class="text-brandGold hover:text-white transition-colors duration-200 p-2 border border-brandGold/30 hover:border-white/50 rounded bg-black/20">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            </button>
+            <div>
+                <h1 class="text-xl md:text-2xl font-mono font-bold text-white tracking-widest uppercase flex items-center gap-2">
+                    ACTULOCK <span class="text-brandGold">//</span> ROBOTIC_ARM_CTRL
+                </h1>
+                <p class="font-mono text-xs text-gray-400 mt-1">STATUS: ONLINE | KINEMATICS: 6-DOF | PROT: ISOLATED</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3 bg-black/50 px-4 py-2 rounded border border-white/5">
+            <div id="global-status-dot" class="w-3 h-3 rounded-full bg-brandGold animate-pulse-fast"></div>
+            <span id="global-status-text" class="font-mono text-brandGold text-sm">AWAITING AI PROPOSAL</span>
+        </div>
+    </header>
+
+    <main class="w-full max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow z-10">
+        
+        <div class="lg:col-span-7 flex flex-col gap-6">
+            
+            <!-- AI Command Queue -->
+            <section class="scada-panel rounded-md p-5 border-l-4 border-l-brandGold">
+                <div class="flex items-center justify-between mb-3 border-b border-white/10 pb-2">
+                    <h2 class="font-mono text-sm text-gray-400">01 // INCOMING_AI_COMMAND</h2>
+                    <span class="font-mono text-[10px] bg-black/50 px-2 py-1 rounded text-techCyan border border-techCyan/30">MOTION PLANNER v4</span>
+                </div>
+                <div class="bg-black/60 p-4 rounded border border-white/5 font-mono text-lg text-white flex items-start gap-3">
+                    <span class="text-techCyan mt-1">></span>
+                    <span id="ai-command-text" class="text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.2)]">Move Axis X to 45.0°, Adjust Grip Tension to 15N</span>
+                </div>
+                <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[11px] text-gray-500">
+                    <span>WORKSPACE LIMITS —</span>
+                    <span>X (BASE): <span class="text-gray-400">±180°</span></span>
+                    <span>Y (SHOULDER): <span class="text-gray-400">±90°</span></span>
+                    <span>Z: <span class="text-gray-400">0–500mm</span></span>
+                    <span>GRIP: <span class="text-gray-400">0–50N</span></span>
+                </div>
+            </section>
+
+            <!-- ActuLock Policy Engine -->
+            <section class="scada-panel rounded-md p-6 flex flex-col items-center justify-center relative overflow-hidden bg-gradient-to-b from-panelBg to-[#112019] min-h-[160px]">
+                <div class="absolute top-0 left-0 w-full h-full scan-beam z-0"></div>
+                
+                <h2 class="font-mono text-sm text-brandGold mb-6 tracking-widest z-10 text-center">02 // ACTULOCK KINEMATIC VERIFICATION</h2>
+                
+                <button id="check-btn" onclick="triggerCheck()" class="z-10 group relative w-72 h-20 bg-black border-2 border-brandGold rounded-lg overflow-hidden flex flex-col items-center justify-center transition-all duration-300 hover:shadow-[0_0_30px_rgba(212,175,55,0.3)] active:scale-95">
+                    <div class="absolute inset-0 bg-brandGold opacity-0 group-hover:opacity-10 transition-opacity"></div>
+                    <div class="flex items-center gap-3">
+                        <svg class="w-6 h-6 text-brandGold" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                        </svg>
+                        <span class="font-mono font-bold text-brandGold tracking-wider text-lg">CHECK SYSTEM</span>
+                    </div>
+                </button>
+            </section>
+
+            <!-- System Logs Terminal -->
+            <section class="scada-panel rounded-md p-0 flex flex-col h-64 border border-white/10">
+                <div class="bg-black/80 px-4 py-2 border-b border-white/10 flex items-center justify-between">
+                    <h2 class="font-mono text-xs text-gray-400">03 // SYSTEM_LOGS</h2>
+                    <div class="flex gap-1.5">
+                        <div class="w-2 h-2 rounded-full bg-techRed/50"></div>
+                        <div class="w-2 h-2 rounded-full bg-techAmber/50"></div>
+                        <div class="w-2 h-2 rounded-full bg-techGreen/50"></div>
+                    </div>
+                </div>
+                <div id="terminal-output" class="p-4 font-mono text-[13px] text-gray-300 flex-grow overflow-y-auto terminal-scroll bg-[#050a08] whitespace-pre-wrap leading-relaxed">
+ACTULOCK ISOLATION LAYER v3.1.0
+WORKSPACE LIMITS LOADED: [X:±180, Y:±90, Z:0-500]
+PAYLOAD MAX: 10.0 KG
+WAITING FOR COMMAND SEQUENCE...</div>
+            </section>
+        </div>
+
+        <div class="lg:col-span-5 flex flex-col gap-6">
+            
+            <!-- Metrics Dashboard -->
+            <div class="scada-panel rounded-md p-4">
+                <h2 class="font-mono text-sm text-gray-400 mb-3 border-b border-white/10 pb-2">ROBOT METRICS HUD</h2>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="metric-box flex flex-col">
+                        <span class="font-mono text-[10px] text-gray-500">JOINT X (BASE)</span>
+                        <span class="font-mono text-white text-lg" id="metric-x">0.0°</span>
+                    </div>
+                    <div class="metric-box flex flex-col">
+                        <span class="font-mono text-[10px] text-gray-500">JOINT Y (SHOULDER)</span>
+                        <span class="font-mono text-white text-lg" id="metric-y">0.0°</span>
+                    </div>
+                    <div class="metric-box flex flex-col">
+                        <span class="font-mono text-[10px] text-gray-500">Z-AXIS EXTENSION</span>
+                        <span class="font-mono text-white text-lg" id="metric-z">150 mm</span>
+                    </div>
+                    <div class="metric-box flex flex-col">
+                        <span class="font-mono text-[10px] text-gray-500">PAYLOAD WEIGHT</span>
+                        <span class="font-mono text-techCyan text-lg">2.4 kg</span>
+                    </div>
+                    <div class="metric-box col-span-2 flex justify-between items-center bg-black/60">
+                        <span class="font-mono text-xs text-gray-400">END-EFFECTOR STATUS</span>
+                        <span class="font-mono text-xs px-2 py-1 bg-techGreen/20 text-techGreen border border-techGreen/30 rounded">ACTIVE / OPEN</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Hardware Actuators -->
+            <div class="scada-panel rounded-md p-6 relative flex flex-col flex-grow">
+                <div class="flex justify-between items-center mb-6 pb-2 border-b border-white/10">
+                    <h2 class="font-mono text-sm text-gray-400">04 // HARDWARE ACTUATORS</h2>
+                    <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                </div>
+                
+                <!-- Lock Overlay -->
+                <div id="lock-overlay" class="hardware-overlay absolute inset-0 z-50 flex flex-col items-center justify-center rounded-md border border-brandGold/30">
+                    <div class="bg-black/90 border-2 border-brandGold p-6 rounded-lg flex flex-col items-center shadow-[0_0_30px_rgba(212,175,55,0.15)] mx-4">
+                        <svg class="w-12 h-12 text-brandGold mb-4 animate-pulse-fast" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                        </svg>
+                        <span class="font-mono font-bold text-brandGold tracking-widest text-lg text-center">HARDWARE LOCKED</span>
+                        <span class="font-mono text-xs text-gray-400 mt-2 text-center max-w-[220px]">ActuLock proxy engaged. Validating kinematics & payload limits.</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-5 flex-grow">
+                    
+                    <!-- X-Axis Control -->
+                    <div class="bg-black/40 p-4 rounded border border-white/5">
+                        <div class="flex justify-between items-center mb-3">
+                            <label class="font-mono text-sm text-gray-300">MOVE AXIS X</label>
+                            <span class="font-mono font-bold text-brandGold bg-brandGold/10 px-2 py-0.5 rounded text-xs" id="ctrl-x">0°</span>
+                        </div>
+                        <input type="range" id="x-slider" min="-180" max="180" value="0" class="w-full actuator-input" disabled oninput="document.getElementById('ctrl-x').innerText = this.value + '°'; document.getElementById('metric-x').innerText = this.value + '.0°'">
+                    </div>
+
+                    <!-- Y-Axis Control -->
+                    <div class="bg-black/40 p-4 rounded border border-white/5">
+                        <div class="flex justify-between items-center mb-3">
+                            <label class="font-mono text-sm text-gray-300">MOVE AXIS Y</label>
+                            <span class="font-mono font-bold text-brandGold bg-brandGold/10 px-2 py-0.5 rounded text-xs" id="ctrl-y">0°</span>
+                        </div>
+                        <input type="range" id="y-slider" min="-90" max="90" value="0" class="w-full actuator-input" disabled oninput="document.getElementById('ctrl-y').innerText = this.value + '°'; document.getElementById('metric-y').innerText = this.value + '.0°'">
+                    </div>
+                    
+                    <!-- Z-Axis Control -->
+                    <div class="bg-black/40 p-4 rounded border border-white/5">
+                        <div class="flex justify-between items-center mb-3">
+                            <label class="font-mono text-sm text-gray-300">EXTEND Z-AXIS (mm)</label>
+                            <span class="font-mono font-bold text-brandGold bg-brandGold/10 px-2 py-0.5 rounded text-xs" id="ctrl-z">150</span>
+                        </div>
+                        <input type="range" id="z-slider" min="0" max="500" value="150" class="w-full actuator-input" disabled oninput="document.getElementById('ctrl-z').innerText = this.value; document.getElementById('metric-z').innerText = this.value + ' mm'">
+                    </div>
+
+                    <!-- Grip Tension / Wrist Control -->
+                    <div class="grid grid-cols-2 gap-4 mt-auto">
+                        <div class="bg-black/40 p-4 rounded border border-white/5 flex flex-col items-center justify-center gap-2 opacity-60">
+                            <span class="font-mono text-xs text-gray-400">GRIP TENSION</span>
+                            <input type="range" id="grip-slider" min="0" max="100" value="0" class="w-full actuator-input" disabled>
+                        </div>
+                        <div class="bg-black/40 p-4 rounded border border-white/5 flex flex-col items-center justify-center gap-2 opacity-60">
+                            <span class="font-mono text-xs text-gray-400">ROTATE WRIST</span>
+                            <input type="range" min="-180" max="180" value="0" class="w-full actuator-input" disabled>
+                        </div>
+                    </div>
+
+                    <!-- Emergency Halt — always live, bypasses the AI check entirely -->
+                    <button id="override-btn" onclick="manualOverride()" class="w-full py-3 border border-red-500/60 text-red-400 font-mono text-sm tracking-widest rounded bg-red-500/10 hover:bg-red-500/20 hover:text-white transition-colors mt-2">
+                        EMERGENCY HALT — FREEZE ALL JOINTS
+                    </button>
+
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+    // DOM Elements
+    const terminal = document.getElementById('terminal-output');
+    const checkBtn = document.getElementById('check-btn');
+    const lockOverlay = document.getElementById('lock-overlay');
+    const bodyContainer = document.getElementById('body-container');
+    const globalStatusDot = document.getElementById('global-status-dot');
+    const globalStatusText = document.getElementById('global-status-text');
+    const aiCommandText = document.getElementById('ai-command-text');
+
+    // Actuator Inputs
+    const actuatorInputs = document.querySelectorAll('.actuator-input');
+    const xSlider = document.getElementById('x-slider');
+    const ySlider = document.getElementById('y-slider');
+    const zSlider = document.getElementById('z-slider');
+    const gripSlider = document.getElementById('grip-slider');
+
+    const EVENT_ID = 2; // ROBOTIC_ARM -- see docs/protocol.md
+    let isScanning = false;
+
+    // Calls the REAL backend -- policy_engine.evaluate() is the only
+    // place these rules live. Nothing here duplicates a threshold.
+    async function checkAction(action, value, label) {
+        const res = await fetch('/api/check', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ event_id: EVENT_ID, action, value, agent: 'web-ui', reasoning: label })
+        });
+        return res.json();
+    }
+
+    function writeToTerminal(text, delay = 0) {
+        return new Promise(resolve => {
+            setTimeout(() => {
+                const time = new Date().toISOString().substring(11, 19);
+                const line = document.createElement('div');
+                line.className = "mb-1";
+                line.innerHTML = `<span class="text-gray-600">[${time}]</span> ${text}`;
+                terminal.appendChild(line);
+                terminal.scrollTop = terminal.scrollHeight;
+                resolve();
+            }, delay);
+        });
+    }
+
+    function lockControls() {
+        lockOverlay.style.opacity = '1';
+        lockOverlay.style.visibility = 'visible';
+        actuatorInputs.forEach(input => input.disabled = true);
+        bodyContainer.classList.remove('animate-lockdown');
+    }
+
+    function unlockControls() {
+        lockOverlay.style.opacity = '0';
+        setTimeout(() => { lockOverlay.style.visibility = 'hidden'; }, 400);
+        actuatorInputs.forEach(input => input.disabled = false);
+    }
+
+    function resetLockOverlay() {
+        const icon = lockOverlay.querySelector('svg');
+        icon.outerHTML = `<svg class="w-12 h-12 text-brandGold mb-4 animate-pulse-fast" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>`;
+        lockOverlay.querySelector('span:first-of-type').innerText = 'HARDWARE LOCKED';
+        lockOverlay.querySelector('span:first-of-type').className = 'font-mono font-bold text-brandGold tracking-widest text-lg text-center';
+        lockOverlay.querySelector('span:last-of-type').innerText = 'ActuLock proxy engaged. Validating kinematics & payload limits.';
+        lockOverlay.querySelector('div').className = 'bg-black/90 border-2 border-brandGold p-6 rounded-lg flex flex-col items-center shadow-[0_0_30px_rgba(212,175,55,0.15)] mx-4';
+    }
+
+    async function handleOutcome(anyDenied, lastReason) {
+        if (!anyDenied) {
+            await writeToTerminal('<span class="text-techGreen font-bold">> VALIDATION SUCCESS: All setpoints within workspace and force limits.</span>', 0);
+            await writeToTerminal('<span class="text-techGreen">> ACTION: Authorized. Hardware Actuators Unlocked.</span>', 300);
+
+            globalStatusDot.className = 'w-3 h-3 rounded-full bg-techGreen shadow-[0_0_10px_#00ff66]';
+            globalStatusText.innerText = 'SYSTEM GOOD / UNLOCKED';
+            globalStatusText.className = 'font-mono text-techGreen text-sm font-bold';
+
+            const icon = lockOverlay.querySelector('svg');
+            icon.outerHTML = `<svg class="w-12 h-12 text-techGreen mb-4 drop-shadow-[0_0_8px_#00ff66]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 10.5V6.75a4.5 4.5 0 119 0v3.75M3.75 21.75h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H3.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" /></svg>`;
+            lockOverlay.querySelector('span:first-of-type').innerText = 'MOTION AUTHORIZED';
+            lockOverlay.querySelector('span:first-of-type').className = 'font-mono font-bold text-techGreen tracking-widest text-lg text-center';
+            lockOverlay.querySelector('span:last-of-type').innerText = 'Actuators verified safe.';
+
+            unlockControls();
+        } else {
+            await writeToTerminal('<span class="text-techAmber font-bold">> REJECTED: One or more setpoints violated policy.</span>', 0);
+            await writeToTerminal(`<span class="text-techAmber">> REASON: ${lastReason}</span>`, 300);
+            await writeToTerminal('<span class="text-techAmber">> ACTION: Rejected. Joints remain locked.</span>', 300);
+
+            globalStatusDot.className = 'w-3 h-3 rounded-full bg-techAmber shadow-[0_0_10px_#ffaa00] animate-pulse';
+            globalStatusText.innerText = 'WORKSPACE CONSTRAINT VIOLATION';
+            globalStatusText.className = 'font-mono text-techAmber text-sm font-bold';
+
+            resetLockOverlay();
+            lockOverlay.querySelector('svg').classList.replace('text-brandGold', 'text-techAmber');
+            lockOverlay.querySelector('span:first-of-type').innerText = 'SETPOINT REJECTED';
+            lockOverlay.querySelector('span:first-of-type').classList.replace('text-brandGold', 'text-techAmber');
+            lockOverlay.querySelector('div').classList.replace('border-brandGold', 'border-techAmber');
+        }
+    }
+
+    // Checks all 4 axes as 4 separate, real single-parameter requests --
+    // the wire protocol only carries one PARAM at a time, so a "move the
+    // whole arm" command becomes a short sequence of individual checks,
+    // same as a real controller would issue one setpoint per joint.
+    async function triggerCheck() {
+        if (isScanning) return;
+        isScanning = true;
+
+        lockControls();
+        checkBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        document.querySelector('.scan-beam').parentElement.classList.add('scanning');
+        globalStatusDot.className = 'w-3 h-3 rounded-full bg-brandGold animate-pulse-fast';
+        globalStatusText.innerText = 'CALCULATING KINEMATICS...';
+        globalStatusText.className = 'font-mono text-brandGold text-sm';
+
+        await writeToTerminal('\n<span class="text-brandGold">> INITIATING ACTULOCK ZERO-TRUST VERIFICATION...</span>', 100);
+        await writeToTerminal('> CHECKING INVERSE KINEMATICS LIMITS...', 300);
+
+        const axes = [
+            { action: 'ROTATE',   value: parseFloat(xSlider.value),    label: `Base Rotation (X) to ${xSlider.value}°` },
+            { action: 'SET_Y',    value: parseFloat(ySlider.value),    label: `Shoulder (Y) to ${ySlider.value}°` },
+            { action: 'SET_Z',    value: parseFloat(zSlider.value),    label: `Extend Z-Axis to ${zSlider.value}mm` },
+            { action: 'SET_GRIP', value: parseFloat(gripSlider.value), label: `Grip Tension to ${gripSlider.value}N` },
+        ];
+
+        let anyDenied = false;
+        let lastReason = '';
+        let batch = null;
+
+        // Sent as ONE atomic batch, not one request per axis -- if any
+        // single axis here is denied, the backend sends NOTHING to
+        // hardware, including axes that were individually fine.
+        try {
+            const res = await fetch('/api/check_batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    event_id: EVENT_ID,
+                    agent: 'web-ui',
+                    actions: axes.map(a => ({ action: a.action, value: a.value, reasoning: a.label })),
+                })
+            });
+            batch = await res.json();
+        } catch (e) {
+            await writeToTerminal('<span class="text-techRed font-bold">> BACKEND UNREACHABLE -- is backend_server.py running?</span>', 0);
+            anyDenied = true;
+            lastReason = 'backend unreachable';
+        }
+
+        if (batch) {
+            for (let i = 0; i < axes.length; i++) {
+                const axis = axes[i];
+                const r = batch.results[i];
+                const hw = batch.hardware[i];
+
+                aiCommandText.innerText = axis.label;
+                await writeToTerminal(`> CHECKING: <span class="text-white">${axis.label}</span>`, 150);
+                await writeToTerminal(`> POLICY CHECK: ${r.reason}`, 150);
+                if (hw && hw.attempted && hw.connected) {
+                    await writeToTerminal(`> HARDWARE (Sender Arduino): ${hw.response || '(no response)'}`, 100);
+                }
+                if (!r.approved) {
+                    anyDenied = true;
+                    lastReason = r.reason;
+                }
+            }
+            if (!batch.all_approved) {
+                await writeToTerminal('<span class="text-techAmber font-bold">> BATCH BLOCKED: at least one axis was denied -- no axis in this command was sent to hardware.</span>', 200);
+            }
+        }
+
+        document.querySelector('.scan-beam').parentElement.classList.remove('scanning');
+        await handleOutcome(anyDenied, lastReason);
+        isScanning = false;
+        checkBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+
+    // Emergency Halt -- bypasses AI/policy verification entirely.
+    // Local/instant by design: a human safety action should never wait
+    // on a network round trip, so this does NOT call the backend.
+    async function manualOverride() {
+        isScanning = false;
+        lockControls();
+        checkBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        document.querySelector('.scan-beam').parentElement.classList.remove('scanning');
+
+        await writeToTerminal('\n<span class="text-techRed font-bold">> EMERGENCY HALT TRIGGERED — FREEZING ALL JOINTS</span>', 0);
+        await writeToTerminal('<span class="text-techRed">> This bypasses AI/policy verification entirely — human authority always wins.</span>', 200);
+
+        bodyContainer.classList.add('animate-lockdown');
+        globalStatusDot.className = 'w-3 h-3 rounded-full bg-techRed shadow-[0_0_10px_#ff2a2a] animate-ping';
+        globalStatusText.innerText = 'EMERGENCY HALT ENGAGED';
+        globalStatusText.className = 'font-mono text-techRed text-sm font-bold';
+
+        resetLockOverlay();
+        lockOverlay.querySelector('svg').classList.replace('text-brandGold', 'text-techRed');
+        lockOverlay.querySelector('span:first-of-type').innerText = 'EMERGENCY HALT';
+        lockOverlay.querySelector('span:first-of-type').classList.replace('text-brandGold', 'text-techRed');
+        lockOverlay.querySelector('div').classList.replace('border-brandGold', 'border-techRed');
+    }
+</script>
+</body>
+</html>

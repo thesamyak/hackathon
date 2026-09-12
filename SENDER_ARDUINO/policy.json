@@ -1,0 +1,30 @@
+{
+  "serial_port": "COM7",
+  "baud_rate": 9600,
+  "min_seconds_between_commands": 1.0,
+  "events": {
+    "1": {
+      "actions": {
+        "SET_RATE":         { "min_value": 0,    "max_value": 200 },
+        "ADMINISTER_BOLUS": { "min_value": 0,    "max_value": 20 },
+        "PURGE_LINE":       { "min_value": 0,    "max_value": 0 }
+      }
+    },
+    "2": {
+      "actions": {
+        "ROTATE":    { "min_value": -180, "max_value": 180 },
+        "SET_Y":     { "min_value": -90,  "max_value": 90 },
+        "SET_Z":     { "min_value": 0,    "max_value": 500 },
+        "SET_GRIP":  { "min_value": 0,    "max_value": 50 }
+      }
+    },
+    "3": {
+      "actions": {
+        "OPEN_GATE":          { "min_value": 0, "max_value": 90 },
+        "SET_TURBINE_RPM":    { "min_value": 0, "max_value": 5000 },
+        "TOGGLE_VALVE_ALPHA": { "min_value": 0, "max_value": 1 },
+        "TOGGLE_VALVE_BETA":  { "min_value": 0, "max_value": 1 }
+      }
+    }
+  }
+}
