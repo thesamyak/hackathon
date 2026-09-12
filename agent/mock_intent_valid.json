@@ -1,0 +1,9 @@
+{
+  "agent": "simulated-agent-01",
+  "timestamp": "2026-09-12T10:00:00Z",
+  "intent": {
+    "action": "BLINK",
+    "value": 3
+  },
+  "reasoning": "User asked to blink the indicator light three times to confirm the system is responsive."
+}

@@ -1,0 +1,9 @@
+{
+  "agent": "simulated-agent-01",
+  "timestamp": "2026-09-12T10:01:00Z",
+  "intent": {
+    "action": "BLINK",
+    "value": 500
+  },
+  "reasoning": "Simulated hallucinated instruction requesting an excessive blink count -- demonstrates a malformed/out-of-bounds AI output."
+}

@@ -1,0 +1,9 @@
+{
+  "agent": "simulated-agent-01",
+  "timestamp": "2026-09-12T10:02:00Z",
+  "intent": {
+    "action": "LED_ON",
+    "value": 0
+  },
+  "reasoning": "A perfectly ordinary, policy-valid request. Used to demo that a physical emergency-stop press overrides even a software-approved action -- run this AFTER pressing the E-Stop button."
+}

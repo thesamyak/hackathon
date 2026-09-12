@@ -1,0 +1,7 @@
+{
+  "serial_port": "COM3",
+  "baud_rate": 9600,
+  "allowed_actions": ["LED_ON", "LED_OFF", "BLINK"],
+  "max_blink_count": 5,
+  "min_seconds_between_commands": 1.0
+}
